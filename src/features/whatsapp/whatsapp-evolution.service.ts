@@ -303,6 +303,56 @@ export class WhatsappEvolutionService
     return saved;
   }
 
+  // ── Delete for everyone (revoke) ──
+
+  async deleteMessageForEveryone(connectionId: string, messageId: string) {
+    const inst = await this.ensureInstance(connectionId);
+    if (!inst) {
+      throw new Error('WhatsApp não conectado');
+    }
+
+    const message = await this.messageRepo.findOne({
+      where: { id: messageId, connectionId },
+    });
+    if (!message) {
+      throw new Error('Mensagem não encontrada');
+    }
+    if (message.direction !== MessageDirection.OUTBOUND) {
+      throw new Error(
+        'Só é possível apagar para todos as mensagens enviadas por você',
+      );
+    }
+    if (!message.externalId) {
+      throw new Error('Mensagem sem identificador do WhatsApp');
+    }
+    if (message.deleted) return message;
+
+    // Evolution API v2: revoga a mensagem para todos os participantes
+    await this.apiCall(
+      'DELETE',
+      `/chat/deleteMessageForEveryone/${inst.instanceName}`,
+      {
+        id: message.externalId,
+        remoteJid: message.remoteJid,
+        fromMe: true,
+      },
+      inst.instanceToken,
+    );
+
+    message.deleted = true;
+    message.deletedAt = new Date();
+    message.content = 'Mensagem apagada';
+    const saved = await this.messageRepo.save(message);
+
+    this.emit('message:deleted', {
+      tenantId: inst.tenantId,
+      connectionId,
+      message: saved,
+    });
+
+    return saved;
+  }
+
   // ── Broadcast ──
 
   async broadcast(connectionId: string, phones: string[], content: string) {

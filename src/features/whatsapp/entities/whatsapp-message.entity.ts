@@ -81,6 +81,12 @@ export class WhatsappMessage {
   @Column({ default: false })
   replyLater: boolean;
 
+  @Column({ default: false })
+  deleted: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

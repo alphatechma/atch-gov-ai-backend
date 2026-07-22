@@ -61,6 +61,15 @@ export class WhatsappGateway
     });
 
     this.evolution.on(
+      'message:deleted',
+      ({ tenantId, connectionId, message }) => {
+        this.server
+          ?.to(`tenant:${tenantId}`)
+          .emit('whatsapp:message:deleted', { connectionId, message });
+      },
+    );
+
+    this.evolution.on(
       'message:status',
       ({ tenantId, connectionId, externalId, status }) => {
         this.server

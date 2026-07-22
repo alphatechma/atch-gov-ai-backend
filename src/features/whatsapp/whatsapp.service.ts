@@ -270,6 +270,21 @@ export class WhatsappService {
     return this.evolution.sendMessage(connectionId, phone, content, quotedId);
   }
 
+  async deleteMessageForEveryone(
+    tenantId: string,
+    connectionId: string,
+    messageId: string,
+  ) {
+    await this.assertOwnership(tenantId, connectionId);
+
+    if (!(await this.evolution.isConnected(connectionId))) {
+      throw new BadRequestException(
+        'WhatsApp não está conectado. Conecte primeiro.',
+      );
+    }
+    return this.evolution.deleteMessageForEveryone(connectionId, messageId);
+  }
+
   async sendMedia(
     tenantId: string,
     connectionId: string,

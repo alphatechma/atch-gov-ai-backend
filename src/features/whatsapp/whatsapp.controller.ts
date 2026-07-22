@@ -302,6 +302,23 @@ export class WhatsappController {
     );
   }
 
+  @Delete('messages/:id')
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @RequiresModule('whatsapp')
+  deleteMessageForEveryone(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('connectionId') connectionId: string,
+  ) {
+    if (!connectionId)
+      throw new BadRequestException('connectionId é obrigatório');
+    return this.whatsappService.deleteMessageForEveryone(
+      req.tenantId,
+      connectionId,
+      id,
+    );
+  }
+
   @Delete('chats/:phone')
   @UseGuards(JwtAuthGuard, ModuleAccessGuard)
   @RequiresModule('whatsapp')
