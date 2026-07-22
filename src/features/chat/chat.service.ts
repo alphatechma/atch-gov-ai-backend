@@ -277,12 +277,16 @@ export class ChatService {
   ) {
     await this.getConversation(tenantId, conversationId, userId);
 
-    const [messages, total] = await this.messageRepo.findAndCount({
-      where: { conversationId },
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const [messages, total] = await this.messageRepo
+      .createQueryBuilder('m')
+      .where('m.conversationId = :conversationId', { conversationId })
+      .andWhere('NOT ("m"."deletedFor" @> :userId::jsonb)', {
+        userId: JSON.stringify([userId]),
+      })
+      .orderBy('m.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     return { messages: messages.reverse(), total, page, limit };
   }
@@ -326,6 +330,73 @@ export class ChatService {
       .execute();
 
     return saved;
+  }
+
+  async deleteMessageForEveryone(
+    tenantId: string,
+    conversationId: string,
+    messageId: string,
+    userId: string,
+  ) {
+    const conversation = await this.getConversation(
+      tenantId,
+      conversationId,
+      userId,
+    );
+
+    const message = await this.messageRepo.findOne({
+      where: { id: messageId, conversationId },
+    });
+    if (!message) throw new NotFoundException('Mensagem não encontrada');
+
+    if (message.senderId !== userId) {
+      throw new ForbiddenException(
+        'Apenas o autor pode apagar a mensagem para todos',
+      );
+    }
+
+    if (message.deleted) return message;
+
+    message.deleted = true;
+    message.deletedAt = new Date();
+    message.content = null as any;
+    message.attachmentUrl = null as any;
+    message.attachmentName = null as any;
+    const saved = await this.messageRepo.save(message);
+
+    // If this was the conversation's last message, refresh the preview text
+    const lastMessage = await this.messageRepo.findOne({
+      where: { conversationId },
+      order: { createdAt: 'DESC' },
+    });
+    if (lastMessage?.id === saved.id) {
+      conversation.lastMessageText = 'Mensagem apagada';
+      await this.conversationRepo.save(conversation);
+    }
+
+    return saved;
+  }
+
+  async deleteMessageForMe(
+    tenantId: string,
+    conversationId: string,
+    messageId: string,
+    userId: string,
+  ) {
+    await this.getConversation(tenantId, conversationId, userId);
+
+    const message = await this.messageRepo.findOne({
+      where: { id: messageId, conversationId },
+    });
+    if (!message) throw new NotFoundException('Mensagem não encontrada');
+
+    const deletedFor = message.deletedFor ?? [];
+    if (!deletedFor.includes(userId)) {
+      message.deletedFor = [...deletedFor, userId];
+      await this.messageRepo.save(message);
+    }
+
+    return { success: true };
   }
 
   async markAsRead(tenantId: string, conversationId: string, userId: string) {

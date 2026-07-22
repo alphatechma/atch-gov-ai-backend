@@ -115,6 +115,34 @@ export class ChatController {
     );
   }
 
+  @Delete('conversations/:id/messages/:messageId')
+  deleteMessage(
+    @Req() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+  ) {
+    return this.chatService.deleteMessageForEveryone(
+      req.tenantId,
+      id,
+      messageId,
+      req.user.id,
+    );
+  }
+
+  @Delete('conversations/:id/messages/:messageId/me')
+  deleteMessageForMe(
+    @Req() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+  ) {
+    return this.chatService.deleteMessageForMe(
+      req.tenantId,
+      id,
+      messageId,
+      req.user.id,
+    );
+  }
+
   @Post('conversations/:id/read')
   markAsRead(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.chatService.markAsRead(req.tenantId, id, req.user.id);

@@ -53,6 +53,16 @@ export class ChatMessage {
   @Column({ type: 'jsonb', default: [] })
   readBy: string[];
 
+  @Column({ default: false })
+  deleted: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
+
+  // User IDs that deleted this message only for themselves ("apagar para mim")
+  @Column({ type: 'jsonb', default: [] })
+  deletedFor: string[];
+
   @CreateDateColumn()
   createdAt: Date;
 }
