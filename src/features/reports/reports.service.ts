@@ -32,6 +32,7 @@ const REPORT_COLUMNS: Record<
       { column: 'voterRegistration', label: 'Titulo de Eleitor' },
       { column: 'votingZone', label: 'Zona Eleitoral' },
       { column: 'votingSection', label: 'Secao Eleitoral' },
+      { column: 'votingLocation', label: 'Local de Votacao' },
       { column: 'tags', label: 'Tags' },
       { column: 'notes', label: 'Observacoes' },
       { column: 'createdAt', label: 'Data de Cadastro' },

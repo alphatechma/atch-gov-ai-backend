@@ -30,6 +30,7 @@ export class CreateVoterDto {
   @IsString() @IsOptional() voterRegistration?: string;
   @IsString() @IsOptional() votingZone?: string;
   @IsString() @IsOptional() votingSection?: string;
+  @IsString() @IsOptional() votingLocation?: string;
   @IsUUID() @IsOptional() leaderId?: string;
   @IsEnum(SupportLevel) @IsOptional() supportLevel?: SupportLevel;
   @IsEnum(ConfidenceLevel) @IsOptional() confidenceLevel?: ConfidenceLevel;

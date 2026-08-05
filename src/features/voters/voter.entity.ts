@@ -67,6 +67,9 @@ export class Voter {
   votingSection: string;
 
   @Column({ nullable: true })
+  votingLocation: string;
+
+  @Column({ nullable: true })
   leaderId: string;
 
   @Column({

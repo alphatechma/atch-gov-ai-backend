@@ -879,6 +879,7 @@ export class VotersService extends TenantAwareService<Voter> {
       { key: 'tituloEleitor', header: 'Titulo de Eleitor', width: 16, value: (v) => v.voterRegistration ?? '' },
       { key: 'zona', header: 'Zona', width: 8, value: (v) => v.votingZone ?? '' },
       { key: 'secao', header: 'Secao', width: 8, value: (v) => v.votingSection ?? '' },
+      { key: 'localVotacao', header: 'Local de Votacao', width: 30, value: (v) => v.votingLocation ?? '' },
       { key: 'nivelConfianca', header: 'Nivel de Confianca', width: 18, value: (v) => v.confidenceLevel ?? '' },
       { key: 'tags', header: 'Tags', width: 20, value: (v) => (v.tags ?? []).join(', ') },
       { key: 'observacoes', header: 'Observacoes', width: 35, value: (v) => v.notes ?? '' },
