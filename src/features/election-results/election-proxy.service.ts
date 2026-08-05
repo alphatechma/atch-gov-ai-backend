@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
+import axios, { AxiosInstance, isAxiosError } from 'axios';
 
 // Perfis com escopo municipal (filtra por city)
 const LOCAL_PROFILES = ['VEREADOR', 'PREFEITO', 'VICE_PREFEITO', 'SECRETARIO'];
@@ -113,7 +113,32 @@ export class ElectionProxyService {
     }
     const qs = params.toString();
     const url = `/elections/${electionId}/analysis/${endpoint}${qs ? `?${qs}` : ''}`;
-    const { data } = await this.client.get(url);
-    return data;
+    try {
+      const { data } = await this.client.get(url);
+      return data;
+    } catch (err) {
+      // Repassa o status/erro real do election-service ao inves de mascarar
+      // tudo como 500 opaco. Loga o corpo do upstream para diagnostico.
+      if (isAxiosError(err)) {
+        const status = err.response?.status ?? 502;
+        const body = err.response?.data;
+        this.logger.error(
+          `Analysis upstream falhou: GET ${url} -> ${status} ${
+            typeof body === 'string' ? body : JSON.stringify(body ?? err.message)
+          }`,
+        );
+        throw new HttpException(
+          {
+            statusCode: status,
+            message: `Falha ao consultar analise "${endpoint}" da eleicao`,
+            upstream: body ?? err.message,
+          },
+          // 4xx do upstream sao repassados; erros de rede/5xx viram 502.
+          status >= 400 && status < 500 ? status : 502,
+        );
+      }
+      this.logger.error(`Analysis erro inesperado: GET ${url}`, err as Error);
+      throw err;
+    }
   }
 }
