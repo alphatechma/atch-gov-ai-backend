@@ -426,6 +426,8 @@ export class VotersService extends TenantAwareService<Voter> {
       cep: 'zipCode',
       titulo: 'voterRegistration',
       'titulo de eleitor': 'voterRegistration',
+      'local de votacao': 'votingLocation',
+      'local de votação': 'votingLocation',
       lideranca: 'leaderName',
       liderança: 'leaderName',
       'lideranca responsavel': 'leaderName',
@@ -774,6 +776,7 @@ export class VotersService extends TenantAwareService<Voter> {
       'Estado',
       'CEP',
       'Titulo',
+      'Local de Votacao',
       'Lideranca',
       // Colunas opcionais de atendimento
       'Tipo de Atendimento',
@@ -782,9 +785,9 @@ export class VotersService extends TenantAwareService<Voter> {
       'Observacoes',
       'Status do Atendimento',
     ];
-    const widths = [30, 16, 18, 35, 20, 20, 8, 12, 16, 25, 25, 20, 18, 40, 20];
+    const widths = [30, 16, 18, 35, 20, 20, 8, 12, 16, 30, 25, 25, 20, 18, 40, 20];
     // Indice das 5 colunas opcionais de atendimento (base 1 do ExcelJS)
-    const optionalCols = new Set([11, 12, 13, 14, 15]);
+    const optionalCols = new Set([12, 13, 14, 15, 16]);
 
     ws.columns = headers.map((header, i) => ({ header, width: widths[i] }));
 
