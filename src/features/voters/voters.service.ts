@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DeepPartial } from 'typeorm';
+import { Repository, DeepPartial, FindOptionsWhere } from 'typeorm';
 import { Voter } from './voter.entity';
 import { Leader } from '../leaders/leader.entity';
 import { TenantAwareService } from '../../shared/base/tenant-aware.service';
@@ -24,7 +24,23 @@ export class VotersService extends TenantAwareService<Voter> {
     super(votersRepo);
   }
 
-  async create(tenantId: string, dto: DeepPartial<Voter>) {
+  /** Cláusula SQL de escopo para inserir num query builder (alias 'v'). */
+  private scopeSql(leaderScope?: string): [string, Record<string, any>] {
+    return leaderScope !== undefined
+      ? ['v.leaderId = :leaderScope', { leaderScope }]
+      : ['1=1', {}];
+  }
+
+  async create(
+    tenantId: string,
+    dto: DeepPartial<Voter>,
+    scope?: FindOptionsWhere<Voter>,
+  ) {
+    // Escopo por liderança: eleitor criado por uma liderança nasce vinculado a ela.
+    const leaderScope = scope?.leaderId as string | undefined;
+    if (leaderScope !== undefined) {
+      dto.leaderId = leaderScope;
+    }
     // Geocodificar se não veio com coordenadas e tem dados de endereço
     if (!dto.latitude && !dto.longitude) {
       const hasAddress = dto.address || dto.neighborhood || dto.city;
@@ -49,7 +65,19 @@ export class VotersService extends TenantAwareService<Voter> {
     return voter;
   }
 
-  async update(tenantId: string, id: string, dto: DeepPartial<Voter>) {
+  async update(
+    tenantId: string,
+    id: string,
+    dto: DeepPartial<Voter>,
+    scope?: FindOptionsWhere<Voter>,
+  ) {
+    // Escopo: garante que o eleitor pertence à liderança (senão 404) e impede
+    // reatribuir para outra liderança.
+    const leaderScope = scope?.leaderId as string | undefined;
+    if (leaderScope !== undefined) {
+      await this.findOne(tenantId, id, scope);
+      dto.leaderId = leaderScope;
+    }
     // Re-geocodificar se campos de endereço mudaram e não vieram coordenadas novas
     const addressFieldChanged =
       dto.address !== undefined ||
@@ -103,8 +131,12 @@ export class VotersService extends TenantAwareService<Voter> {
     return voter;
   }
 
-  async remove(tenantId: string, id: string) {
-    const voter = await this.findOne(tenantId, id);
+  async remove(
+    tenantId: string,
+    id: string,
+    scope?: FindOptionsWhere<Voter>,
+  ) {
+    const voter = await this.findOne(tenantId, id, scope);
     const { leaderId } = voter;
     const result = await super.remove(tenantId, id);
     if (leaderId) {
@@ -122,7 +154,7 @@ export class VotersService extends TenantAwareService<Voter> {
     );
   }
 
-  async getHeatmapData(tenantId: string) {
+  async getHeatmapData(tenantId: string, leaderScope?: string) {
     return this.votersRepo
       .createQueryBuilder('v')
       .select([
@@ -135,6 +167,7 @@ export class VotersService extends TenantAwareService<Voter> {
         'v.supportLevel',
       ])
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .andWhere('v.latitude IS NOT NULL')
       .andWhere('v.longitude IS NOT NULL')
       .getMany();
@@ -143,10 +176,12 @@ export class VotersService extends TenantAwareService<Voter> {
   async getHeatmapAggregated(
     tenantId: string,
     groupBy: 'neighborhood' | 'city' | 'state',
+    leaderScope?: string,
   ) {
     const qb = this.votersRepo
       .createQueryBuilder('v')
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .andWhere('v.latitude IS NOT NULL')
       .andWhere('v.longitude IS NOT NULL');
 
@@ -180,11 +215,12 @@ export class VotersService extends TenantAwareService<Voter> {
     return qb.orderBy('count', 'DESC').getRawMany();
   }
 
-  async getNeighborhoods(tenantId: string) {
+  async getNeighborhoods(tenantId: string, leaderScope?: string) {
     const rows = await this.votersRepo
       .createQueryBuilder('v')
       .select('DISTINCT v.neighborhood', 'neighborhood')
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .andWhere('v.neighborhood IS NOT NULL')
       .andWhere("v.neighborhood != ''")
       .orderBy('v.neighborhood', 'ASC')
@@ -192,45 +228,49 @@ export class VotersService extends TenantAwareService<Voter> {
     return rows.map((r) => r.neighborhood);
   }
 
-  async getStatsByNeighborhood(tenantId: string) {
+  async getStatsByNeighborhood(tenantId: string, leaderScope?: string) {
     return this.votersRepo
       .createQueryBuilder('v')
       .select('v.neighborhood', 'neighborhood')
       .addSelect('COUNT(*)', 'count')
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .andWhere('v.neighborhood IS NOT NULL')
       .groupBy('v.neighborhood')
       .orderBy('count', 'DESC')
       .getRawMany();
   }
 
-  async getStatsBySupportLevel(tenantId: string) {
+  async getStatsBySupportLevel(tenantId: string, leaderScope?: string) {
     return this.votersRepo
       .createQueryBuilder('v')
       .select('v.supportLevel', 'supportLevel')
       .addSelect('COUNT(*)', 'count')
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .groupBy('v.supportLevel')
       .getRawMany();
   }
 
-  async getStatsByConfidenceLevel(tenantId: string) {
+  async getStatsByConfidenceLevel(tenantId: string, leaderScope?: string) {
     return this.votersRepo
       .createQueryBuilder('v')
       .select('v.confidenceLevel', 'confidenceLevel')
       .addSelect('COUNT(*)', 'count')
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .groupBy('v.confidenceLevel')
       .getRawMany();
   }
 
-  async getStatsByCity(tenantId: string) {
+  async getStatsByCity(tenantId: string, leaderScope?: string) {
     return this.votersRepo
       .createQueryBuilder('v')
       .select('v.city', 'city')
       .addSelect('v.state', 'state')
       .addSelect('COUNT(*)', 'count')
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .andWhere('v.city IS NOT NULL')
       .groupBy('v.city')
       .addGroupBy('v.state')
@@ -825,10 +865,12 @@ export class VotersService extends TenantAwareService<Voter> {
       confidenceLevel?: string;
       fields?: string[];
     },
+    leaderScope?: string,
   ): Promise<Buffer> {
     const qb = this.votersRepo
       .createQueryBuilder('v')
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .orderBy('v.createdAt', 'DESC');
 
     if (filters.search) {
@@ -928,6 +970,7 @@ export class VotersService extends TenantAwareService<Voter> {
       gender?: string;
       confidenceLevel?: string;
     },
+    leaderScope?: string,
   ): Promise<{ data: Voter[]; total: number; page: number; limit: number }> {
     const page = Math.max(1, filters.page || 1);
     const limit = Math.min(200, Math.max(1, filters.limit || 50));
@@ -935,7 +978,8 @@ export class VotersService extends TenantAwareService<Voter> {
 
     const qb = this.votersRepo
       .createQueryBuilder('v')
-      .where('v.tenantId = :tenantId', { tenantId });
+      .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope));
 
     if (filters.search) {
       qb.andWhere('(v.name ILIKE :q OR v.phone ILIKE :q)', {
@@ -973,6 +1017,7 @@ export class VotersService extends TenantAwareService<Voter> {
       gender?: string;
       confidenceLevel?: string;
     },
+    leaderScope?: string,
   ): Promise<{
     total: number;
     withPhone: number;
@@ -984,7 +1029,8 @@ export class VotersService extends TenantAwareService<Voter> {
     const baseQb = () => {
       const qb = this.votersRepo
         .createQueryBuilder('v')
-        .where('v.tenantId = :tenantId', { tenantId });
+        .where('v.tenantId = :tenantId', { tenantId })
+        .andWhere(...this.scopeSql(leaderScope));
 
       if (filters.search) {
         qb.andWhere('(v.name ILIKE :q OR v.phone ILIKE :q)', {
@@ -1058,7 +1104,13 @@ export class VotersService extends TenantAwareService<Voter> {
     };
   }
 
-  async getLeaderRankingByConfidence(tenantId: string) {
+  async getLeaderRankingByConfidence(tenantId: string, leaderScope?: string) {
+    const params: any[] = [tenantId];
+    let scopeClause = '';
+    if (leaderScope !== undefined) {
+      params.push(leaderScope);
+      scopeClause = ` AND v."leaderId" = $2`;
+    }
     const rows = await this.votersRepo.query(
       `SELECT
          l.id AS "leaderId",
@@ -1078,19 +1130,20 @@ export class VotersService extends TenantAwareService<Voter> {
        FROM voters v
        INNER JOIN leaders l ON l.id = v."leaderId"::uuid
        WHERE v."tenantId" = $1
-         AND v."leaderId" IS NOT NULL
+         AND v."leaderId" IS NOT NULL${scopeClause}
        GROUP BY l.id, l.name
        ORDER BY "score" DESC
        LIMIT 5`,
-      [tenantId],
+      params,
     );
     return rows;
   }
 
-  async search(tenantId: string, query: string) {
+  async search(tenantId: string, query: string, leaderScope?: string) {
     return this.votersRepo
       .createQueryBuilder('v')
       .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .andWhere(
         '(v.name ILIKE :query OR v.cpf ILIKE :query OR v.phone ILIKE :query)',
         {

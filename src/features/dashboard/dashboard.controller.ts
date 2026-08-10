@@ -2,10 +2,11 @@ import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('dashboard')
 export class DashboardController {
   constructor(private dashboardService: DashboardService) {}

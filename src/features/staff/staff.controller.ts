@@ -15,10 +15,11 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('staff')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('staff')
 export class StaffController {
   constructor(private service: StaffService) {}

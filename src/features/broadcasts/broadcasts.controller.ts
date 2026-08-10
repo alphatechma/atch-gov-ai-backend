@@ -16,10 +16,11 @@ import { CreateBroadcastDto } from './dto/create-broadcast.dto';
 import { UpdateBroadcastDto } from './dto/update-broadcast.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('broadcasts')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('whatsapp')
 export class BroadcastsController {
   constructor(private broadcastsService: BroadcastsService) {}

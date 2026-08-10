@@ -6,17 +6,25 @@ export abstract class TenantAwareService<
 > {
   constructor(protected readonly repository: Repository<T>) {}
 
-  async findAll(tenantId: string, filters?: FindOptionsWhere<T>) {
-    const where = { tenantId, ...filters } as FindOptionsWhere<T>;
+  /**
+   * `scope` é um filtro extra opcional (ex.: { leaderId } para escopo por
+   * liderança). Quando presente, restringe todas as leituras/escritas.
+   */
+  async findAll(
+    tenantId: string,
+    filters?: FindOptionsWhere<T>,
+    scope?: FindOptionsWhere<T>,
+  ) {
+    const where = { tenantId, ...filters, ...scope } as FindOptionsWhere<T>;
     return this.repository.find({
       where,
       order: { createdAt: 'DESC' } as any,
     });
   }
 
-  async findOne(tenantId: string, id: string) {
+  async findOne(tenantId: string, id: string, scope?: FindOptionsWhere<T>) {
     const entity = await this.repository.findOne({
-      where: { id, tenantId } as FindOptionsWhere<T>,
+      where: { id, tenantId, ...scope } as FindOptionsWhere<T>,
     });
     if (!entity) throw new NotFoundException('Registro não encontrado');
     return entity;
@@ -30,14 +38,19 @@ export abstract class TenantAwareService<
     return this.repository.save(entity);
   }
 
-  async update(tenantId: string, id: string, dto: DeepPartial<T>) {
-    const entity = await this.findOne(tenantId, id);
+  async update(
+    tenantId: string,
+    id: string,
+    dto: DeepPartial<T>,
+    scope?: FindOptionsWhere<T>,
+  ) {
+    const entity = await this.findOne(tenantId, id, scope);
     Object.assign(entity, dto);
     return this.repository.save(entity);
   }
 
-  async remove(tenantId: string, id: string) {
-    const entity = await this.findOne(tenantId, id);
+  async remove(tenantId: string, id: string, scope?: FindOptionsWhere<T>) {
+    const entity = await this.findOne(tenantId, id, scope);
     return this.repository.remove(entity);
   }
 }

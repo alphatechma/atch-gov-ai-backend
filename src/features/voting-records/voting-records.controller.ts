@@ -15,10 +15,11 @@ import { CreateVotingRecordDto } from './dto/create-voting-record.dto';
 import { UpdateVotingRecordDto } from './dto/update-voting-record.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('voting-records')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('voting-records')
 export class VotingRecordsController {
   constructor(private service: VotingRecordsService) {}

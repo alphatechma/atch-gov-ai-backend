@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DeepPartial } from 'typeorm';
+import { Repository, DeepPartial, FindOptionsWhere } from 'typeorm';
 import { Visit } from './visit.entity';
 import { Appointment } from '../appointments/appointment.entity';
 import { Voter } from '../voters/voter.entity';
@@ -85,8 +85,18 @@ export class VisitsService extends TenantAwareService<Visit> {
     return this.repository.save(saved);
   }
 
-  async update(tenantId: string, id: string, dto: DeepPartial<Visit>) {
-    const visit = await this.findOne(tenantId, id);
+  async update(
+    tenantId: string,
+    id: string,
+    dto: DeepPartial<Visit>,
+    scope?: FindOptionsWhere<Visit>,
+  ) {
+    const visit = await this.findOne(tenantId, id, scope);
+    // Escopo por liderança: impede reatribuir a visita para outra liderança.
+    const leaderScope = scope?.leaderId as string | undefined;
+    if (leaderScope !== undefined) {
+      dto.leaderId = leaderScope;
+    }
     Object.assign(visit, dto);
     const saved = await this.repository.save(visit);
 
@@ -123,8 +133,12 @@ export class VisitsService extends TenantAwareService<Visit> {
     return saved;
   }
 
-  async remove(tenantId: string, id: string) {
-    const visit = await this.findOne(tenantId, id);
+  async remove(
+    tenantId: string,
+    id: string,
+    scope?: FindOptionsWhere<Visit>,
+  ) {
+    const visit = await this.findOne(tenantId, id, scope);
     const appointmentId = visit.appointmentId;
 
     const removed = await this.repository.remove(visit);

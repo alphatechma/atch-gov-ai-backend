@@ -22,10 +22,14 @@ import { CreateVoterDto } from './dto/create-voter.dto';
 import { UpdateVoterDto } from './dto/update-voter.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
+import { RequiresPermission } from '../../shared/decorators/requires-permission.decorator';
+import { PermissionAction } from '../../shared/enums';
+import { leaderScopeId, leaderScopeWhere } from '../../shared/utils/leader-scope';
 
 @Controller('voters')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('voters')
 export class VotersController {
   constructor(private votersService: VotersService) {}
@@ -47,15 +51,19 @@ export class VotersController {
     const leaderIds = leaderId
       ? Array.isArray(leaderId) ? leaderId : [leaderId]
       : undefined;
-    return this.votersService.findAllPaginated(req.tenantId, {
-      page: page ? parseInt(page, 10) : undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      search,
-      neighborhoods,
-      leaderIds,
-      gender,
-      confidenceLevel,
-    });
+    return this.votersService.findAllPaginated(
+      req.tenantId,
+      {
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        search,
+        neighborhoods,
+        leaderIds,
+        gender,
+        confidenceLevel,
+      },
+      leaderScopeId(req),
+    );
   }
 
   @Get('list-stats')
@@ -73,23 +81,27 @@ export class VotersController {
     const leaderIds = leaderId
       ? Array.isArray(leaderId) ? leaderId : [leaderId]
       : undefined;
-    return this.votersService.getListStats(req.tenantId, {
-      search,
-      neighborhoods,
-      leaderIds,
-      gender,
-      confidenceLevel,
-    });
+    return this.votersService.getListStats(
+      req.tenantId,
+      {
+        search,
+        neighborhoods,
+        leaderIds,
+        gender,
+        confidenceLevel,
+      },
+      leaderScopeId(req),
+    );
   }
 
   @Get('search')
   search(@Req() req: any, @Query('q') query: string) {
-    return this.votersService.search(req.tenantId, query);
+    return this.votersService.search(req.tenantId, query, leaderScopeId(req));
   }
 
   @Get('heatmap')
   getHeatmap(@Req() req: any) {
-    return this.votersService.getHeatmapData(req.tenantId);
+    return this.votersService.getHeatmapData(req.tenantId, leaderScopeId(req));
   }
 
   @Get('heatmap/aggregated')
@@ -99,37 +111,53 @@ export class VotersController {
   ) {
     const valid = ['neighborhood', 'city', 'state'];
     const group = valid.includes(groupBy) ? groupBy : 'neighborhood';
-    return this.votersService.getHeatmapAggregated(req.tenantId, group);
+    return this.votersService.getHeatmapAggregated(
+      req.tenantId,
+      group,
+      leaderScopeId(req),
+    );
   }
 
   @Get('neighborhoods')
   getNeighborhoods(@Req() req: any) {
-    return this.votersService.getNeighborhoods(req.tenantId);
+    return this.votersService.getNeighborhoods(req.tenantId, leaderScopeId(req));
   }
 
   @Get('stats/neighborhood')
   statsByNeighborhood(@Req() req: any) {
-    return this.votersService.getStatsByNeighborhood(req.tenantId);
+    return this.votersService.getStatsByNeighborhood(
+      req.tenantId,
+      leaderScopeId(req),
+    );
   }
 
   @Get('stats/city')
   statsByCity(@Req() req: any) {
-    return this.votersService.getStatsByCity(req.tenantId);
+    return this.votersService.getStatsByCity(req.tenantId, leaderScopeId(req));
   }
 
   @Get('stats/support-level')
   statsBySupportLevel(@Req() req: any) {
-    return this.votersService.getStatsBySupportLevel(req.tenantId);
+    return this.votersService.getStatsBySupportLevel(
+      req.tenantId,
+      leaderScopeId(req),
+    );
   }
 
   @Get('stats/confidence-level')
   statsByConfidenceLevel(@Req() req: any) {
-    return this.votersService.getStatsByConfidenceLevel(req.tenantId);
+    return this.votersService.getStatsByConfidenceLevel(
+      req.tenantId,
+      leaderScopeId(req),
+    );
   }
 
   @Get('stats/leader-ranking')
   leaderRanking(@Req() req: any) {
-    return this.votersService.getLeaderRankingByConfidence(req.tenantId);
+    return this.votersService.getLeaderRankingByConfidence(
+      req.tenantId,
+      leaderScopeId(req),
+    );
   }
 
   @Get('export')
@@ -149,14 +177,18 @@ export class VotersController {
     const leaderIds = leaderId
       ? Array.isArray(leaderId) ? leaderId : [leaderId]
       : undefined;
-    const buffer = await this.votersService.exportToExcel(req.tenantId, {
-      search,
-      neighborhoods,
-      leaderIds,
-      gender,
-      confidenceLevel,
-      fields: fields ? fields.split(',') : undefined,
-    });
+    const buffer = await this.votersService.exportToExcel(
+      req.tenantId,
+      {
+        search,
+        neighborhoods,
+        leaderIds,
+        gender,
+        confidenceLevel,
+        fields: fields ? fields.split(',') : undefined,
+      },
+      leaderScopeId(req),
+    );
     res.set({
       'Content-Type':
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -193,6 +225,8 @@ export class VotersController {
   }
 
   @Post('geocode-all')
+  // Geocodificação em massa: muta registros existentes → EDIT (não CREATE).
+  @RequiresPermission('voters', PermissionAction.EDIT)
   geocodeAll(@Req() req: any) {
     // Dispara em background e retorna imediatamente
     this.votersService.geocodeAllVoters(req.tenantId).catch(() => {});
@@ -201,12 +235,12 @@ export class VotersController {
 
   @Get(':id')
   findOne(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    return this.votersService.findOne(req.tenantId, id);
+    return this.votersService.findOne(req.tenantId, id, leaderScopeWhere(req));
   }
 
   @Post()
   create(@Req() req: any, @Body() dto: CreateVoterDto) {
-    return this.votersService.create(req.tenantId, dto);
+    return this.votersService.create(req.tenantId, dto, leaderScopeWhere(req));
   }
 
   @Patch(':id')
@@ -215,11 +249,16 @@ export class VotersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateVoterDto,
   ) {
-    return this.votersService.update(req.tenantId, id, dto);
+    return this.votersService.update(
+      req.tenantId,
+      id,
+      dto,
+      leaderScopeWhere(req),
+    );
   }
 
   @Delete(':id')
   remove(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    return this.votersService.remove(req.tenantId, id);
+    return this.votersService.remove(req.tenantId, id, leaderScopeWhere(req));
   }
 }

@@ -15,10 +15,12 @@ import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
+import { leaderScopeWhere } from '../../shared/utils/leader-scope';
 
 @Controller('visits')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('visits')
 export class VisitsController {
   constructor(private service: VisitsService) {}
@@ -40,16 +42,18 @@ export class VisitsController {
 
   @Get()
   findAll(@Req() req: any) {
-    return this.service.findAll(req.tenantId);
+    return this.service.findAll(req.tenantId, undefined, leaderScopeWhere(req));
   }
 
   @Get(':id')
   findOne(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.findOne(req.tenantId, id);
+    return this.service.findOne(req.tenantId, id, leaderScopeWhere(req));
   }
 
   @Post()
   create(@Req() req: any, @Body() dto: CreateVisitDto) {
+    const scope = leaderScopeWhere(req);
+    if (scope) (dto as any).leaderId = scope.leaderId;
     return this.service.create(req.tenantId, dto);
   }
 
@@ -59,11 +63,11 @@ export class VisitsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateVisitDto,
   ) {
-    return this.service.update(req.tenantId, id, dto);
+    return this.service.update(req.tenantId, id, dto, leaderScopeWhere(req));
   }
 
   @Delete(':id')
   remove(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.remove(req.tenantId, id);
+    return this.service.remove(req.tenantId, id, leaderScopeWhere(req));
   }
 }

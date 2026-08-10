@@ -16,10 +16,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ElectionProxyService } from './election-proxy.service';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('election-results')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('election-analysis')
 export class ElectionResultsController {
   constructor(private proxy: ElectionProxyService) {}

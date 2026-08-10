@@ -15,10 +15,11 @@ import { CreatePoliticalContactDto } from './dto/create-political-contact.dto';
 import { UpdatePoliticalContactDto } from './dto/update-political-contact.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('political-contacts')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('political-contacts')
 export class PoliticalContactsController {
   constructor(private service: PoliticalContactsService) {}

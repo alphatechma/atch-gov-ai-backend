@@ -57,4 +57,69 @@ export class LeadersService extends TenantAwareService<Leader> {
 
     return super.create(tenantId, leaderData);
   }
+
+  /**
+   * Concede acesso (login) a uma liderança que ainda não tem: cria um User
+   * role LEADER e vincula via userId.
+   */
+  async grantAccess(
+    tenantId: string,
+    leaderId: string,
+    data: { email?: string; password: string },
+  ) {
+    const leader = await this.findOne(tenantId, leaderId);
+    if (leader.userId) {
+      throw new BadRequestException('Esta liderança já possui acesso');
+    }
+    const email = data.email || leader.email;
+    if (!email) {
+      throw new BadRequestException(
+        'E-mail é obrigatório para criar o acesso',
+      );
+    }
+
+    const user = await this.usersService.create({
+      name: leader.name,
+      email,
+      password: data.password,
+      role: UserRole.LEADER,
+      tenantId,
+      phone: leader.phone,
+      cpf: leader.cpf,
+    });
+
+    leader.userId = user.id;
+    if (!leader.email) leader.email = email;
+    await this.repository.save(leader);
+    return this.findOne(tenantId, leaderId);
+  }
+
+  /**
+   * Remove o acesso de uma liderança: apaga o User vinculado (liberando o
+   * e-mail) e volta a liderança para o estado "sem acesso" (userId = null).
+   */
+  async revokeAccess(tenantId: string, leaderId: string) {
+    const leader = await this.findOne(tenantId, leaderId);
+    if (!leader.userId) {
+      throw new BadRequestException('Esta liderança não possui acesso');
+    }
+    await this.usersService.remove(leader.userId, tenantId);
+    leader.userId = null as any;
+    await this.repository.save(leader);
+    return this.findOne(tenantId, leaderId);
+  }
+
+  /** Redefine a senha do login de uma liderança que tem acesso. */
+  async resetAccessPassword(
+    tenantId: string,
+    leaderId: string,
+    password: string,
+  ) {
+    const leader = await this.findOne(tenantId, leaderId);
+    if (!leader.userId) {
+      throw new BadRequestException('Esta liderança não possui acesso');
+    }
+    await this.usersService.update(leader.userId, { password }, tenantId);
+    return { success: true };
+  }
 }

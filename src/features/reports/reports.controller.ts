@@ -12,11 +12,16 @@ import { ReportsService } from './reports.service';
 import { GenerateReportDto, ReportFormat } from './dto/generate-report.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
+import { RequiresPermission } from '../../shared/decorators/requires-permission.decorator';
+import { PermissionAction } from '../../shared/enums';
 
 @Controller('reports')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('reports')
+// Módulo view-only: gerar relatório é "usar" o módulo → exige apenas VIEW.
+@RequiresPermission('reports', PermissionAction.VIEW)
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 

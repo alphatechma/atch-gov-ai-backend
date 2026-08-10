@@ -16,6 +16,7 @@ import { TenantsModule } from './core/tenants/tenants.module';
 import { UsersModule } from './core/users/users.module';
 import { PlansModule } from './core/plans/plans.module';
 import { ModulesModule } from './core/modules/modules.module';
+import { PermissionsModule } from './core/permissions/permissions.module';
 import { AuditLogModule } from './core/audit-log/audit-log.module';
 import { LeadsModule } from './core/leads/leads.module';
 import { SubscribersModule } from './core/subscribers/subscribers.module';
@@ -71,6 +72,7 @@ import { BroadcastsModule } from './features/broadcasts/broadcasts.module';
     UsersModule,
     PlansModule,
     ModulesModule,
+    PermissionsModule,
     AuditLogModule,
     LeadsModule,
     SubscribersModule,

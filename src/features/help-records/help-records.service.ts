@@ -25,6 +25,13 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
     super(repo);
   }
 
+  /** Cláusula SQL de escopo para inserir num query builder (alias 'h'). */
+  private scopeSql(leaderScope?: string): [string, Record<string, any>] {
+    return leaderScope !== undefined
+      ? ['h.leaderId = :leaderScope', { leaderScope }]
+      : ['1=1', {}];
+  }
+
   async findAllTypes(tenantId: string): Promise<HelpType[]> {
     return this.typeRepo.find({ where: { tenantId }, order: { name: 'ASC' } });
   }
@@ -100,6 +107,7 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
       dateFrom?: string;
       dateTo?: string;
     },
+    leaderScope?: string,
   ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     const page = Math.max(1, filters.page || 1);
     const limit = Math.min(200, Math.max(1, filters.limit || 50));
@@ -110,7 +118,8 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
       .leftJoin('voters', 'v', 'v.id = h."voterId"::uuid')
       .addSelect('v.name', 'voterName')
       .addSelect('v.neighborhood', 'voterNeighborhood')
-      .where('h."tenantId" = :tenantId', { tenantId });
+      .where('h."tenantId" = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope));
 
     if (filters.search) {
       qb.andWhere('(h.type ILIKE :q OR h.observations ILIKE :q OR v.name ILIKE :q)', {
@@ -183,6 +192,7 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
       dateFrom?: string;
       dateTo?: string;
     },
+    leaderScope?: string,
   ): Promise<{
     total: number;
     pending: number;
@@ -196,7 +206,8 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
       const qb = this.repository
         .createQueryBuilder('h')
         .leftJoin('voters', 'v', 'v.id = h."voterId"::uuid')
-        .where('h."tenantId" = :tenantId', { tenantId });
+        .where('h."tenantId" = :tenantId', { tenantId })
+        .andWhere(...this.scopeSql(leaderScope));
 
       if (filters.search) {
         qb.andWhere('(h.type ILIKE :q OR h.observations ILIKE :q)', {
@@ -565,10 +576,12 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
       dateFrom?: string;
       dateTo?: string;
     },
+    leaderScope?: string,
   ): Promise<Buffer> {
     const qb = this.repository
       .createQueryBuilder('h')
       .where('h.tenantId = :tenantId', { tenantId })
+      .andWhere(...this.scopeSql(leaderScope))
       .orderBy('h.createdAt', 'DESC');
 
     if (filters.search) {

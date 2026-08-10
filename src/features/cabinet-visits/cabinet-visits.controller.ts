@@ -17,10 +17,13 @@ import { CreateVisitorDto } from './dto/create-visitor.dto';
 import { UpdateVisitorDto } from './dto/update-visitor.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
+import { RequiresPermission } from '../../shared/decorators/requires-permission.decorator';
+import { PermissionAction } from '../../shared/enums';
 
 @Controller('cabinet-visits')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('cabinet-visits')
 export class CabinetVisitsController {
   constructor(private service: CabinetVisitsService) {}
@@ -64,6 +67,8 @@ export class CabinetVisitsController {
   }
 
   @Post('visitors/check-voter')
+  // Consulta de correspondência de eleitor: leitura.
+  @RequiresPermission('cabinet-visits', PermissionAction.VIEW)
   checkVoterMatchByData(
     @Req() req: any,
     @Body() body: { name: string; phone?: string },

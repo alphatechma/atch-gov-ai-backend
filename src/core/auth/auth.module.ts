@@ -13,9 +13,12 @@ import { JwtOrApiKeyGuard } from './guards/jwt-or-api-key.guard';
 import { User } from '../users/user.entity';
 import { TenantModule } from '../modules/tenant-module.entity';
 import { Subscriber } from '../subscribers/subscriber.entity';
+import { Leader } from '../../features/leaders/leader.entity';
+import { PermissionsModule } from '../permissions/permissions.module';
 
 @Module({
   imports: [
+    PermissionsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -27,7 +30,7 @@ import { Subscriber } from '../subscribers/subscriber.entity';
         },
       }),
     }),
-    TypeOrmModule.forFeature([User, TenantModule, Subscriber]),
+    TypeOrmModule.forFeature([User, TenantModule, Subscriber, Leader]),
   ],
   controllers: [AuthController],
   providers: [

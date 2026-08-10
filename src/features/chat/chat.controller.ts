@@ -22,10 +22,13 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
+import { RequiresPermission } from '../../shared/decorators/requires-permission.decorator';
+import { PermissionAction } from '../../shared/enums';
 
 @Controller('chat')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('chat')
 export class ChatController {
   constructor(private chatService: ChatService) {}
@@ -144,6 +147,8 @@ export class ChatController {
   }
 
   @Post('conversations/:id/read')
+  // Marcar como lida: leitura da própria conversa.
+  @RequiresPermission('chat', PermissionAction.VIEW)
   markAsRead(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.chatService.markAsRead(req.tenantId, id, req.user.id);
   }
@@ -177,6 +182,8 @@ export class ChatController {
   }
 
   @Post('conversations/:id/mute')
+  // Silenciar: preferência pessoal de leitura, não altera a conversa.
+  @RequiresPermission('chat', PermissionAction.VIEW)
   toggleMute(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.chatService.toggleMute(req.tenantId, id, req.user.id);
   }

@@ -9,11 +9,16 @@ import {
 } from './dto/ai.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
+import { RequiresPermission } from '../../shared/decorators/requires-permission.decorator';
+import { PermissionAction } from '../../shared/enums';
 
 @Controller('ai')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('ai')
+// Módulo view-only: todas as operações são "usar a IA" → exigem apenas VIEW.
+@RequiresPermission('ai', PermissionAction.VIEW)
 export class AiController {
   constructor(private aiService: AiService) {}
 

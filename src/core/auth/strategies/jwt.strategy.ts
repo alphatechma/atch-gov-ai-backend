@@ -6,6 +6,9 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Repository } from 'typeorm';
 import { User } from '../../users/user.entity';
 import { Subscriber } from '../../subscribers/subscriber.entity';
+import { Leader } from '../../../features/leaders/leader.entity';
+import { PermissionsService } from '../../permissions/permissions.service';
+import { UserRole } from '../../../shared/enums';
 
 interface JwtPayload {
   sub: string;
@@ -23,6 +26,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private usersRepo: Repository<User>,
     @InjectRepository(Subscriber)
     private subscribersRepo: Repository<Subscriber>,
+    @InjectRepository(Leader)
+    private leadersRepo: Repository<Leader>,
+    private permissionsService: PermissionsService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -64,6 +70,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     }
 
+    const permissions = await this.permissionsService.getEffectivePermissions({
+      id: user.id,
+      role: user.role,
+    });
+
+    // Escopo por liderança: para usuários LEADER, resolve a liderança vinculada.
+    // Sem vínculo → null (o fail-safe é aplicado na camada de escopo).
+    let leaderId: string | null = null;
+    if (user.role === UserRole.LEADER) {
+      const leader = await this.leadersRepo.findOne({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+      leaderId = leader?.id ?? null;
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -72,6 +94,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       tenantId: user.tenantId,
       tenant: user.tenant,
       allowedModules: user.allowedModules,
+      permissions,
+      leaderId,
     };
   }
 }

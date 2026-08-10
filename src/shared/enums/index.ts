@@ -21,6 +21,18 @@ export enum UserRole {
   RECEPTIONIST = 'RECEPTIONIST',
 }
 
+export enum PermissionAction {
+  VIEW = 'view',
+  CREATE = 'create',
+  EDIT = 'edit',
+  DELETE = 'delete',
+}
+
+export enum PermissionEffect {
+  ALLOW = 'ALLOW',
+  DENY = 'DENY',
+}
+
 export enum ModuleCategory {
   CORE = 'CORE',
   GESTAO = 'GESTAO',

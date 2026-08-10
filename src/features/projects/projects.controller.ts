@@ -15,10 +15,13 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
+import { RequiresPermission } from '../../shared/decorators/requires-permission.decorator';
+import { PermissionAction } from '../../shared/enums';
 
 @Controller('projects')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('projects')
 export class ProjectsController {
   constructor(private service: ProjectsService) {}
@@ -39,6 +42,8 @@ export class ProjectsController {
   }
 
   @Post(':id/view')
+  // Contador de visualização: leitura, não criação.
+  @RequiresPermission('projects', PermissionAction.VIEW)
   incrementViews(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.service.incrementViews(req.tenantId, id);
   }

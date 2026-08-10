@@ -15,10 +15,11 @@ import { CreateExecutiveRequestDto } from './dto/create-executive-request.dto';
 import { UpdateExecutiveRequestDto } from './dto/update-executive-request.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('executive-requests')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('executive-requests')
 export class ExecutiveRequestsController {
   constructor(private service: ExecutiveRequestsService) {}

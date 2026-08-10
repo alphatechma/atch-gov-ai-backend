@@ -21,6 +21,7 @@ import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 import { WhatsappService } from './whatsapp.service';
 import {
@@ -61,14 +62,14 @@ export class WhatsappController {
   // ── Multi-instance connection endpoints ──
 
   @Get('connections')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   listConnections(@Req() req: any) {
     return this.whatsappService.listConnections(req.tenantId);
   }
 
   @Post('connections')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   createConnection(@Req() req: any, @Body() dto: CreateConnectionDto) {
     return this.whatsappService.createConnection(
@@ -79,14 +80,14 @@ export class WhatsappController {
   }
 
   @Get('connections/:id')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   getConnectionById(@Req() req: any, @Param('id') id: string) {
     return this.whatsappService.getConnectionById(req.tenantId, id);
   }
 
   @Post('connections/:id/start')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   startConnectionById(@Req() req: any, @Param('id') id: string) {
     return this.whatsappService.startConnection(
@@ -97,7 +98,7 @@ export class WhatsappController {
   }
 
   @Patch('connections/:id')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   updateConnection(
     @Req() req: any,
@@ -108,14 +109,14 @@ export class WhatsappController {
   }
 
   @Post('connections/:id/disconnect')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   disconnectById(@Req() req: any, @Param('id') id: string) {
     return this.whatsappService.disconnectConnection(req.tenantId, id);
   }
 
   @Delete('connections/:id')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   deleteConnection(@Req() req: any, @Param('id') id: string) {
     return this.whatsappService.deleteConnection(req.tenantId, id);
@@ -124,14 +125,14 @@ export class WhatsappController {
   // ── Legacy singular endpoints (operate on default connection) ──
 
   @Get('connection')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   getConnection(@Req() req: any) {
     return this.whatsappService.getConnection(req.tenantId);
   }
 
   @Post('connection/start')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   startConnection(@Req() req: any) {
     return this.whatsappService.legacyStartConnection(
@@ -141,7 +142,7 @@ export class WhatsappController {
   }
 
   @Delete('connection')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   disconnect(@Req() req: any) {
     return this.whatsappService.legacyDisconnect(req.tenantId);
@@ -150,7 +151,7 @@ export class WhatsappController {
   // ── Messaging ──
 
   @Post('send')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   sendMessage(@Req() req: any, @Body() dto: SendMessageDto) {
     return this.whatsappService.sendMessage(
@@ -163,7 +164,7 @@ export class WhatsappController {
   }
 
   @Post('send-media')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: 16 * 1024 * 1024 } }),
@@ -193,7 +194,7 @@ export class WhatsappController {
   }
 
   @Post('broadcast')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   broadcast(@Req() req: any, @Body() dto: BroadcastDto) {
     return this.whatsappService.broadcast(
@@ -207,7 +208,7 @@ export class WhatsappController {
   // ── Media Proxy ──
 
   @Get('media/:messageId')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   async getMedia(
     @Req() req: any,
@@ -232,7 +233,7 @@ export class WhatsappController {
   // ── Analytics ──
 
   @Get('analytics')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   getAnalytics(
     @Req() req: any,
@@ -251,7 +252,7 @@ export class WhatsappController {
   }
 
   @Get('analytics/export')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   async exportAnalytics(
     @Req() req: any,
@@ -280,7 +281,7 @@ export class WhatsappController {
   // ── Chat History ──
 
   @Get('chats')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   getChats(
     @Req() req: any,
@@ -303,7 +304,7 @@ export class WhatsappController {
   }
 
   @Delete('messages/:id')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   deleteMessageForEveryone(
     @Req() req: any,
@@ -320,7 +321,7 @@ export class WhatsappController {
   }
 
   @Delete('chats/:phone')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   deleteChat(
     @Req() req: any,
@@ -333,7 +334,7 @@ export class WhatsappController {
   }
 
   @Patch('chats/:phone/read')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   markChatRead(
     @Req() req: any,
@@ -350,7 +351,7 @@ export class WhatsappController {
   }
 
   @Patch('chats/:phone/unread')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   markChatUnread(
     @Req() req: any,
@@ -367,7 +368,7 @@ export class WhatsappController {
   }
 
   @Patch('chats/:phone/reply-later')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   toggleReplyLater(
     @Req() req: any,
@@ -384,7 +385,7 @@ export class WhatsappController {
   }
 
   @Get('chats/messages')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   getChatMessages(
     @Req() req: any,
@@ -405,7 +406,7 @@ export class WhatsappController {
   }
 
   @Get('chats/search')
-  @UseGuards(JwtAuthGuard, ModuleAccessGuard)
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')
   searchMessages(
     @Req() req: any,

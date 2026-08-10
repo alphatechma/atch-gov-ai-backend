@@ -16,6 +16,7 @@ import { RegisterDto } from './dto/register.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { TenantModule } from '../modules/tenant-module.entity';
 import { Subscriber } from '../subscribers/subscriber.entity';
+import { PermissionsService } from '../permissions/permissions.service';
 
 @Injectable()
 export class AuthService {
@@ -28,6 +29,7 @@ export class AuthService {
     private subscribersRepo: Repository<Subscriber>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private permissionsService: PermissionsService,
   ) {}
 
   private async ensureActiveSubscription(tenantId: string | null): Promise<void> {
@@ -82,6 +84,11 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user, enabledModules);
 
+    const permissions = await this.permissionsService.getEffectivePermissions({
+      id: user.id,
+      role: user.role,
+    });
+
     return {
       ...tokens,
       user: {
@@ -91,6 +98,7 @@ export class AuthService {
         role: user.role,
         tenantId: user.tenantId,
         allowedModules: user.allowedModules,
+        permissions,
         tenant: user.tenant
           ? {
               id: user.tenant.id,
@@ -171,6 +179,11 @@ export class AuthService {
     });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
+    const permissions = await this.permissionsService.getEffectivePermissions({
+      id: user.id,
+      role: user.role,
+    });
+
     return {
       id: user.id,
       name: user.name,
@@ -183,6 +196,8 @@ export class AuthService {
       tenant: user.tenant
         ? { id: user.tenant.id, name: user.tenant.name, slug: user.tenant.slug }
         : null,
+      allowedModules: user.allowedModules,
+      permissions,
       createdAt: user.createdAt,
     };
   }

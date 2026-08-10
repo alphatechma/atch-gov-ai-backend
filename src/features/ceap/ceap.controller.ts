@@ -15,10 +15,11 @@ import { CreateCeapDto } from './dto/create-ceap.dto';
 import { UpdateCeapDto } from './dto/update-ceap.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('ceap')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('ceap')
 export class CeapController {
   constructor(private service: CeapService) {}

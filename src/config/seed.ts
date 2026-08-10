@@ -2,7 +2,21 @@ import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { SystemModule } from '../core/modules/system-module.entity';
 import { User } from '../core/users/user.entity';
-import { ModuleCategory, PoliticalProfile, UserRole } from '../shared/enums';
+import { Permission } from '../core/permissions/permission.entity';
+import { RolePermission } from '../core/permissions/role-permission.entity';
+import {
+  ModuleCategory,
+  PermissionAction,
+  PoliticalProfile,
+  UserRole,
+} from '../shared/enums';
+import {
+  ALL_ACTIONS,
+  PERMISSIONABLE_MODULES,
+  ROLE_PERMISSION_DEFAULTS,
+  expandRoleDefault,
+  permissionKey,
+} from '../core/permissions/permissions.constants';
 
 const ALL_PROFILES = Object.values(PoliticalProfile);
 
@@ -272,6 +286,93 @@ const SYSTEM_MODULES: Partial<SystemModule>[] = [
   },
 ];
 
+const ACTION_LABEL: Record<PermissionAction, string> = {
+  [PermissionAction.VIEW]: 'Visualizar',
+  [PermissionAction.CREATE]: 'Criar',
+  [PermissionAction.EDIT]: 'Editar',
+  [PermissionAction.DELETE]: 'Deletar',
+};
+
+/**
+ * Seed do catálogo de permissões (módulo × ação) e dos defaults por role.
+ * Idempotente: só insere o que ainda não existe.
+ */
+async function seedPermissions(dataSource: DataSource) {
+  const permissionRepo = dataSource.getRepository(Permission);
+  const rolePermissionRepo = dataSource.getRepository(RolePermission);
+
+  // 1. Catálogo: módulo × ação. Carrega tudo de uma vez e insere só o que falta.
+  const existingPerms = await permissionRepo.find();
+  const keyToId = new Map<string, string>(
+    existingPerms.map((p) => [p.key, p.id]),
+  );
+  const toCreate: Permission[] = [];
+  for (const module of PERMISSIONABLE_MODULES) {
+    for (const action of ALL_ACTIONS) {
+      const key = permissionKey(module, action);
+      if (keyToId.has(key)) continue;
+      toCreate.push(
+        permissionRepo.create({
+          module,
+          action,
+          key,
+          description: `${ACTION_LABEL[action]} — ${module}`,
+        }),
+      );
+    }
+  }
+  if (toCreate.length) {
+    const saved = await permissionRepo.save(toCreate);
+    for (const p of saved) keyToId.set(p.key, p.id);
+  }
+  console.log(
+    `Seeded permissions catalog (${keyToId.size} total, ${toCreate.length} new)`,
+  );
+
+  // 2. Defaults por role. O código (ROLE_PERMISSION_DEFAULTS) é a fonte de
+  // verdade: reconcilia cada papel definido (adiciona o que falta e REMOVE o
+  // que não está mais nos defaults). Papéis fora do mapa (ex.: SUPER_ADMIN)
+  // não são tocados.
+  const existingRolePerms = await rolePermissionRepo.find();
+  const existingByRole = new Map<string, RolePermission[]>();
+  for (const rp of existingRolePerms) {
+    const list = existingByRole.get(rp.role) ?? [];
+    list.push(rp);
+    existingByRole.set(rp.role, list);
+  }
+
+  const rolePermsToCreate: RolePermission[] = [];
+  const rolePermsToRemove: RolePermission[] = [];
+  for (const [role, defaults] of Object.entries(ROLE_PERMISSION_DEFAULTS)) {
+    if (!defaults) continue;
+    const desiredKeys = new Set(defaults.flatMap((d) => expandRoleDefault(d)));
+    const existing = existingByRole.get(role) ?? [];
+
+    // Adiciona os que faltam.
+    const existingPermIds = new Set(existing.map((rp) => rp.permissionId));
+    for (const key of desiredKeys) {
+      const permissionId = keyToId.get(key);
+      if (!permissionId || existingPermIds.has(permissionId)) continue;
+      rolePermsToCreate.push(
+        rolePermissionRepo.create({ role: role as UserRole, permissionId }),
+      );
+    }
+    // Remove os que não estão mais nos defaults (usa a relação eager permission).
+    for (const rp of existing) {
+      if (!desiredKeys.has(rp.permission.key)) rolePermsToRemove.push(rp);
+    }
+  }
+  if (rolePermsToCreate.length) {
+    await rolePermissionRepo.save(rolePermsToCreate);
+  }
+  if (rolePermsToRemove.length) {
+    await rolePermissionRepo.remove(rolePermsToRemove);
+  }
+  console.log(
+    `Seeded role permission defaults (${rolePermsToCreate.length} new, ${rolePermsToRemove.length} removed)`,
+  );
+}
+
 export async function runSeed(dataSource: DataSource) {
   const moduleRepo = dataSource.getRepository(SystemModule);
   const userRepo = dataSource.getRepository(User);
@@ -285,6 +386,9 @@ export async function runSeed(dataSource: DataSource) {
   }
 
   console.log(`Seeded ${SYSTEM_MODULES.length} system modules`);
+
+  // Seed permissions catalog + role defaults
+  await seedPermissions(dataSource);
 
   // Seed super admin
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@governeai.com';

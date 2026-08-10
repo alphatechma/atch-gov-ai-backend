@@ -15,10 +15,11 @@ import { CreateAmendmentDto } from './dto/create-amendment.dto';
 import { UpdateAmendmentDto } from './dto/update-amendment.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../shared/guards/module-access.guard';
+import { PermissionsGuard } from '../../shared/guards/permissions.guard';
 import { RequiresModule } from '../../shared/decorators/requires-module.decorator';
 
 @Controller('amendments')
-@UseGuards(JwtAuthGuard, ModuleAccessGuard)
+@UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
 @RequiresModule('amendments')
 export class AmendmentsController {
   constructor(private service: AmendmentsService) {}
