@@ -575,6 +575,7 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
       neighborhood?: string;
       dateFrom?: string;
       dateTo?: string;
+      fields?: string[];
     },
     leaderScope?: string,
   ): Promise<Buffer> {
@@ -609,14 +610,31 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
 
     let records = await qb.getMany();
 
-    // Load voters for name + bairro mapping
+    // Load voters for name + detail mapping
+    type VoterExportInfo = {
+      name: string;
+      neighborhood: string;
+      cpf: string;
+      phone: string;
+      email: string;
+      address: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      voterRegistration: string;
+      votingZone: string;
+      votingSection: string;
+      votingLocation: string;
+    };
     const voters = await this.repository.manager.query(
-      `SELECT id, name, neighborhood FROM voters WHERE "tenantId" = $1`,
+      `SELECT id, name, neighborhood, cpf, phone, email, address, city, state,
+              "zipCode", "voterRegistration", "votingZone", "votingSection",
+              "votingLocation"
+         FROM voters WHERE "tenantId" = $1`,
       [tenantId],
     );
-    const voterMap = new Map<string, { name: string; neighborhood: string }>();
-    for (const v of voters)
-      voterMap.set(v.id, { name: v.name, neighborhood: v.neighborhood });
+    const voterMap = new Map<string, VoterExportInfo>();
+    for (const v of voters) voterMap.set(v.id, v as VoterExportInfo);
 
     // Load leaders for name mapping
     const leaders = await this.repository.manager.query(
@@ -642,23 +660,146 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
       CANCELLED: 'Cancelado',
     };
 
+    const allColumns: {
+      key: string;
+      header: string;
+      width: number;
+      value: (h: HelpRecord) => string;
+    }[] = [
+      {
+        key: 'data',
+        header: 'Data',
+        width: 14,
+        value: (h) =>
+          h.date ?? (h.createdAt ? String(h.createdAt).slice(0, 10) : ''),
+      },
+      { key: 'tipo', header: 'Tipo', width: 25, value: (h) => h.type ?? '' },
+      {
+        key: 'categoria',
+        header: 'Categoria',
+        width: 20,
+        value: (h) => h.category ?? '',
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        width: 16,
+        value: (h) => STATUS_LABELS[h.status] ?? h.status,
+      },
+      {
+        key: 'eleitor',
+        header: 'Eleitor',
+        width: 30,
+        value: (h) => (h.voterId ? (voterMap.get(h.voterId)?.name ?? '') : ''),
+      },
+      {
+        key: 'bairro',
+        header: 'Bairro',
+        width: 20,
+        value: (h) =>
+          h.voterId ? (voterMap.get(h.voterId)?.neighborhood ?? '') : '',
+      },
+      {
+        key: 'cpf',
+        header: 'CPF',
+        width: 16,
+        value: (h) => (h.voterId ? (voterMap.get(h.voterId)?.cpf ?? '') : ''),
+      },
+      {
+        key: 'telefone',
+        header: 'Telefone',
+        width: 16,
+        value: (h) => (h.voterId ? (voterMap.get(h.voterId)?.phone ?? '') : ''),
+      },
+      {
+        key: 'email',
+        header: 'Email',
+        width: 28,
+        value: (h) => (h.voterId ? (voterMap.get(h.voterId)?.email ?? '') : ''),
+      },
+      {
+        key: 'endereco',
+        header: 'Endereco',
+        width: 30,
+        value: (h) =>
+          h.voterId ? (voterMap.get(h.voterId)?.address ?? '') : '',
+      },
+      {
+        key: 'cidade',
+        header: 'Cidade',
+        width: 20,
+        value: (h) => (h.voterId ? (voterMap.get(h.voterId)?.city ?? '') : ''),
+      },
+      {
+        key: 'estado',
+        header: 'Estado',
+        width: 8,
+        value: (h) => (h.voterId ? (voterMap.get(h.voterId)?.state ?? '') : ''),
+      },
+      {
+        key: 'cep',
+        header: 'CEP',
+        width: 12,
+        value: (h) =>
+          h.voterId ? (voterMap.get(h.voterId)?.zipCode ?? '') : '',
+      },
+      {
+        key: 'tituloEleitor',
+        header: 'Titulo de Eleitor',
+        width: 16,
+        value: (h) =>
+          h.voterId ? (voterMap.get(h.voterId)?.voterRegistration ?? '') : '',
+      },
+      {
+        key: 'zona',
+        header: 'Zona',
+        width: 8,
+        value: (h) =>
+          h.voterId ? (voterMap.get(h.voterId)?.votingZone ?? '') : '',
+      },
+      {
+        key: 'secao',
+        header: 'Secao',
+        width: 8,
+        value: (h) =>
+          h.voterId ? (voterMap.get(h.voterId)?.votingSection ?? '') : '',
+      },
+      {
+        key: 'localVotacao',
+        header: 'Local de Votacao',
+        width: 30,
+        value: (h) =>
+          h.voterId ? (voterMap.get(h.voterId)?.votingLocation ?? '') : '',
+      },
+      {
+        key: 'lideranca',
+        header: 'Lideranca',
+        width: 25,
+        value: (h) => (h.leaderId ? (leaderMap.get(h.leaderId) ?? '') : ''),
+      },
+      {
+        key: 'observacoes',
+        header: 'Observacoes',
+        width: 40,
+        value: (h) => h.observations ?? '',
+      },
+      {
+        key: 'resolucao',
+        header: 'Resolucao',
+        width: 40,
+        value: (h) => h.resolution ?? '',
+      },
+    ];
+
+    const selectedFields = filters.fields;
+    const columns = selectedFields
+      ? allColumns.filter((c) => selectedFields.includes(c.key))
+      : allColumns;
+
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Atendimentos');
 
-    const headers = [
-      'Data',
-      'Tipo',
-      'Categoria',
-      'Status',
-      'Eleitor',
-      'Bairro',
-      'Lideranca',
-      'Observacoes',
-      'Resolucao',
-    ];
-    const widths = [14, 25, 20, 16, 30, 20, 25, 40, 40];
-
-    ws.columns = headers.map((header, i) => ({ header, width: widths[i] }));
+    ws.columns = columns.map((col) => ({ header: col.header, width: col.width }));
 
     const headerRow = ws.getRow(1);
     headerRow.eachCell((cell) => {
@@ -672,18 +813,7 @@ export class HelpRecordsService extends TenantAwareService<HelpRecord> {
     });
 
     for (const h of records) {
-      const voter = h.voterId ? voterMap.get(h.voterId) : null;
-      ws.addRow([
-        h.date ?? (h.createdAt ? String(h.createdAt).slice(0, 10) : ''),
-        h.type ?? '',
-        h.category ?? '',
-        STATUS_LABELS[h.status] ?? h.status,
-        voter?.name ?? '',
-        voter?.neighborhood ?? '',
-        h.leaderId ? (leaderMap.get(h.leaderId) ?? '') : '',
-        h.observations ?? '',
-        h.resolution ?? '',
-      ]);
+      ws.addRow(columns.map((col) => col.value(h)));
     }
 
     const arrayBuffer = await wb.xlsx.writeBuffer();

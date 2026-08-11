@@ -56,6 +56,7 @@ export class HelpRecordsController {
     @Query('neighborhood') neighborhood?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('fields') fields?: string,
   ) {
     const buffer = await this.service.exportToExcel(
       req.tenantId,
@@ -66,6 +67,7 @@ export class HelpRecordsController {
         neighborhood,
         dateFrom,
         dateTo,
+        fields: fields ? fields.split(',') : undefined,
       },
       leaderScopeId(req),
     );
