@@ -45,6 +45,8 @@ import { DashboardModule } from './features/dashboard/dashboard.module';
 import { WhatsappModule } from './features/whatsapp/whatsapp.module';
 import { CabinetVisitsModule } from './features/cabinet-visits/cabinet-visits.module';
 import { BroadcastsModule } from './features/broadcasts/broadcasts.module';
+import { NotificationsModule } from './features/notifications/notifications.module';
+import { VoterChangeRequestsModule } from './features/voter-change-requests/voter-change-requests.module';
 
 @Module({
   imports: [
@@ -101,6 +103,8 @@ import { BroadcastsModule } from './features/broadcasts/broadcasts.module';
     WhatsappModule,
     CabinetVisitsModule,
     BroadcastsModule,
+    NotificationsModule,
+    VoterChangeRequestsModule,
   ],
 })
 export class AppModule implements OnModuleInit {

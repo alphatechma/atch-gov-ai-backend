@@ -175,3 +175,27 @@ export enum VisitStatus {
   CONCLUIDA = 'CONCLUIDA',
   CANCELADA = 'CANCELADA',
 }
+
+/**
+ * Tipo de solicitação de alteração de eleitor feita por uma liderança.
+ * A liderança não edita/exclui o eleitor direto — abre uma solicitação para o ADM.
+ */
+export enum VoterChangeRequestType {
+  UPDATE = 'UPDATE',
+  DELETE = 'DELETE',
+}
+
+/** Ciclo de vida da solicitação: pendente → aprovada ou rejeitada (volta p/ liderança). */
+export enum VoterChangeRequestStatus {
+  PENDENTE = 'PENDENTE',
+  APROVADA = 'APROVADA',
+  REJEITADA = 'REJEITADA',
+}
+
+/** Tipos de notificação in-app do fluxo de aprovação. */
+export enum NotificationType {
+  CHANGE_REQUEST_CREATED = 'CHANGE_REQUEST_CREATED',
+  CHANGE_REQUEST_APPROVED = 'CHANGE_REQUEST_APPROVED',
+  CHANGE_REQUEST_REJECTED = 'CHANGE_REQUEST_REJECTED',
+  CHANGE_REQUEST_RESUBMITTED = 'CHANGE_REQUEST_RESUBMITTED',
+}
