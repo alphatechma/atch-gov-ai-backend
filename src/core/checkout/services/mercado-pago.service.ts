@@ -70,19 +70,23 @@ export interface MpMerchantOrderLookup {
 @Injectable()
 export class MercadoPagoService {
   private readonly logger = new Logger(MercadoPagoService.name);
-  private readonly client: MercadoPagoConfig;
-  private readonly preApproval: PreApproval;
-  private readonly preference: Preference;
-  private readonly payment: Payment;
+  private readonly client?: MercadoPagoConfig;
+  private readonly preApproval?: PreApproval;
+  private readonly preference?: Preference;
+  private readonly payment?: Payment;
 
   constructor(private configService: ConfigService) {
     const accessToken = this.configService.get<string>(
       'MERCADO_PAGO_ACCESS_TOKEN',
     );
     if (!accessToken) {
-      throw new InternalServerErrorException(
-        'MERCADO_PAGO_ACCESS_TOKEN não configurado',
+      // Não derruba o boot (ex.: ambiente de HML sem MP). As operações de
+      // pagamento é que falham com erro claro se forem chamadas — ver
+      // ensureConfigured(). Mesmo padrão de MailService/StorageService.
+      this.logger.warn(
+        'MERCADO_PAGO_ACCESS_TOKEN não configurado — pagamentos desativados',
       );
+      return;
     }
     this.client = new MercadoPagoConfig({ accessToken });
     this.preApproval = new PreApproval(this.client);
@@ -90,8 +94,18 @@ export class MercadoPagoService {
     this.payment = new Payment(this.client);
   }
 
+  /** Garante que o MP está configurado antes de qualquer operação. */
+  private ensureConfigured(): void {
+    if (!this.client) {
+      throw new InternalServerErrorException(
+        'MERCADO_PAGO_ACCESS_TOKEN não configurado',
+      );
+    }
+  }
+
   async createPreference(params: CreatePreferenceParams) {
-    const result = await this.preference.create({
+    this.ensureConfigured();
+    const result = await this.preference!.create({
       body: {
         items: params.items.map((item, index) => ({
           id: `${params.sessionId}-${index}`,
@@ -134,7 +148,8 @@ export class MercadoPagoService {
   }
 
   async createPreapproval(params: CreatePreapprovalParams) {
-    const result = await this.preApproval.create({
+    this.ensureConfigured();
+    const result = await this.preApproval!.create({
       body: {
         reason: params.reason,
         external_reference: params.sessionId,
@@ -174,7 +189,8 @@ export class MercadoPagoService {
   }
 
   async updatePreapprovalAmount(id: string, amount: number): Promise<void> {
-    await this.preApproval.update({
+    this.ensureConfigured();
+    await this.preApproval!.update({
       id,
       body: {
         auto_recurring: {
@@ -188,13 +204,15 @@ export class MercadoPagoService {
   }
 
   async cancelPreapproval(id: string): Promise<void> {
-    await this.preApproval.update({
+    this.ensureConfigured();
+    await this.preApproval!.update({
       id,
       body: { status: 'cancelled' } as never,
     });
   }
 
   async refundPayment(paymentId: string): Promise<void> {
+    this.ensureConfigured();
     const accessToken = this.configService.get<string>(
       'MERCADO_PAGO_ACCESS_TOKEN',
     );
@@ -213,7 +231,8 @@ export class MercadoPagoService {
   }
 
   async getPayment(id: string): Promise<MpPaymentLookup> {
-    const result = await this.payment.get({ id });
+    this.ensureConfigured();
+    const result = await this.payment!.get({ id });
     return {
       id: String(result.id ?? id),
       status: result.status,
@@ -229,7 +248,8 @@ export class MercadoPagoService {
   }
 
   async getPreapproval(id: string): Promise<MpPreapprovalLookup> {
-    const result = await this.preApproval.get({ id });
+    this.ensureConfigured();
+    const result = await this.preApproval!.get({ id });
     return {
       id: String(result.id ?? id),
       status: result.status,
@@ -241,6 +261,7 @@ export class MercadoPagoService {
   }
 
   async getMerchantOrder(id: string): Promise<MpMerchantOrderLookup> {
+    this.ensureConfigured();
     const accessToken = this.configService.get<string>(
       'MERCADO_PAGO_ACCESS_TOKEN',
     );
@@ -267,6 +288,7 @@ export class MercadoPagoService {
   }
 
   async getAuthorizedPayment(id: string): Promise<MpAuthorizedPaymentLookup> {
+    this.ensureConfigured();
     const accessToken = this.configService.get<string>(
       'MERCADO_PAGO_ACCESS_TOKEN',
     );
