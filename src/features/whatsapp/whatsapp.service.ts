@@ -309,6 +309,29 @@ export class WhatsappService {
     );
   }
 
+  /** Send a recorded voice note (PTT) to a chat. */
+  async sendAudio(
+    tenantId: string,
+    connectionId: string,
+    phone: string,
+    file: { buffer: Buffer; mimetype: string },
+    seconds?: number,
+  ) {
+    await this.assertOwnership(tenantId, connectionId);
+
+    if (!(await this.evolution.isConnected(connectionId))) {
+      throw new BadRequestException(
+        'WhatsApp não está conectado. Conecte primeiro.',
+      );
+    }
+
+    if (!file.mimetype?.startsWith('audio/')) {
+      throw new BadRequestException('O arquivo enviado não é um áudio.');
+    }
+
+    return this.evolution.sendAudio(connectionId, phone, file.buffer, seconds);
+  }
+
   async broadcast(
     tenantId: string,
     connectionId: string,
@@ -339,10 +362,15 @@ export class WhatsappService {
     });
     if (!msg || !msg.externalId) return null;
 
+    // Voice notes arrive as ogg/opus, which Safari cannot play. Ask Evolution
+    // for mp4 so the same blob works in every browser.
+    const isAudio = msg.type === 'audio' || msg.type === 'ptt';
+
     return this.evolution.getMediaBase64(
       msg.connectionId,
       msg.externalId,
       msg.remoteJid,
+      isAudio,
     );
   }
 

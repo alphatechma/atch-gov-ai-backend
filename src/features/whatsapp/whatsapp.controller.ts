@@ -193,6 +193,33 @@ export class WhatsappController {
     );
   }
 
+  @Post('send-audio')
+  @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
+  @RequiresModule('whatsapp')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 16 * 1024 * 1024 } }),
+  )
+  sendAudio(
+    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('connectionId') connectionId: string,
+    @Body('phone') phone: string,
+    @Body('seconds') seconds?: string,
+  ) {
+    if (!file) throw new BadRequestException('Áudio é obrigatório');
+    if (!phone) throw new BadRequestException('Telefone é obrigatório');
+    if (!connectionId)
+      throw new BadRequestException('connectionId é obrigatório');
+    const parsedSeconds = seconds ? Number(seconds) : undefined;
+    return this.whatsappService.sendAudio(
+      req.tenantId,
+      connectionId,
+      phone,
+      { buffer: file.buffer, mimetype: file.mimetype },
+      Number.isFinite(parsedSeconds) ? parsedSeconds : undefined,
+    );
+  }
+
   @Post('broadcast')
   @UseGuards(JwtAuthGuard, ModuleAccessGuard, PermissionsGuard)
   @RequiresModule('whatsapp')

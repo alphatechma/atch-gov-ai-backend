@@ -69,6 +69,14 @@ export class WhatsappMessage {
   @Column({ nullable: true })
   mediaUrl: string;
 
+  /** Original mimetype reported by WhatsApp (the proxy may serve a converted one). */
+  @Column({ nullable: true })
+  mediaMimetype: string;
+
+  /** Length in seconds for audio/video, so the bubble can label it before loading. */
+  @Column({ type: 'int', nullable: true })
+  mediaDuration: number | null;
+
   @Column({ type: 'jsonb', default: [] })
   reactions: { emoji: string; from: string }[];
 

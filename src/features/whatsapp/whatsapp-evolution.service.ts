@@ -13,6 +13,13 @@ import {
 } from './entities/whatsapp-message.entity';
 import { EventEmitter } from 'events';
 
+interface CachedMedia {
+  base64: string;
+  mimetype: string;
+  bytes: number;
+  expiresAt: number;
+}
+
 interface InstanceCache {
   tenantId: string;
   instanceName: string;
@@ -34,6 +41,19 @@ export class WhatsappEvolutionService
   /** In-memory cache keyed by connectionId. Supports multiple instances per tenant. */
   private instances = new Map<string, InstanceCache>();
 
+  /**
+   * Decoded media, keyed by connection + WhatsApp message id + whether it is
+   * the mp4-converted variant. Fetching media costs a round-trip to Evolution
+   * plus decryption — and, for audio, an ffmpeg transcode — so replaying a
+   * voice note would otherwise pay that price every time.
+   *
+   * Insertion order doubles as LRU: a hit re-inserts at the end.
+   */
+  private mediaCache = new Map<string, CachedMedia>();
+  private mediaCacheBytes = 0;
+  private static readonly MEDIA_CACHE_MAX_BYTES = 128 * 1024 * 1024;
+  private static readonly MEDIA_CACHE_TTL_MS = 30 * 60 * 1000;
+
   constructor(
     private configService: ConfigService,
     @InjectRepository(WhatsappConnection)
@@ -52,6 +72,64 @@ export class WhatsappEvolutionService
 
   async onModuleDestroy() {
     this.instances.clear();
+    this.mediaCache.clear();
+    this.mediaCacheBytes = 0;
+  }
+
+  // ── Media cache ──
+
+  private mediaCacheKey(
+    connectionId: string,
+    externalId: string,
+    convertToMp4: boolean,
+  ): string {
+    return `${connectionId}:${externalId}:${convertToMp4 ? 'mp4' : 'raw'}`;
+  }
+
+  private readMediaCache(key: string): CachedMedia | null {
+    const hit = this.mediaCache.get(key);
+    if (!hit) return null;
+
+    if (hit.expiresAt <= Date.now()) {
+      this.mediaCache.delete(key);
+      this.mediaCacheBytes -= hit.bytes;
+      return null;
+    }
+
+    // Refresh LRU position.
+    this.mediaCache.delete(key);
+    this.mediaCache.set(key, hit);
+    return hit;
+  }
+
+  private writeMediaCache(key: string, base64: string, mimetype: string) {
+    const bytes = base64.length;
+    if (bytes > WhatsappEvolutionService.MEDIA_CACHE_MAX_BYTES) return;
+
+    const existing = this.mediaCache.get(key);
+    if (existing) {
+      this.mediaCache.delete(key);
+      this.mediaCacheBytes -= existing.bytes;
+    }
+
+    this.mediaCache.set(key, {
+      base64,
+      mimetype,
+      bytes,
+      expiresAt: Date.now() + WhatsappEvolutionService.MEDIA_CACHE_TTL_MS,
+    });
+    this.mediaCacheBytes += bytes;
+
+    // Evict oldest entries until back under budget.
+    while (
+      this.mediaCacheBytes > WhatsappEvolutionService.MEDIA_CACHE_MAX_BYTES
+    ) {
+      const oldest = this.mediaCache.keys().next();
+      if (oldest.done) break;
+      const evicted = this.mediaCache.get(oldest.value);
+      this.mediaCache.delete(oldest.value);
+      if (evicted) this.mediaCacheBytes -= evicted.bytes;
+    }
   }
 
   // ── Restore active connections on startup ──
@@ -707,10 +785,26 @@ export class WhatsappEvolutionService
           : '') ||
         '[midia]';
 
+      const inlineMedia = this.extractMediaBase64(message, msgType);
       const hasMedia =
-        this.extractMediaBase64(message, msgType) !== null ||
+        inlineMedia !== null ||
         ['image', 'video', 'audio', 'sticker', 'document'].includes(msgType);
       const mediaUrl = hasMedia ? 'proxy' : undefined;
+
+      const mediaNode =
+        message.audioMessage ||
+        message.pttMessage ||
+        message.imageMessage ||
+        message.videoMessage ||
+        message.documentMessage ||
+        message.stickerMessage;
+      const mediaMimetype = hasMedia
+        ? ((mediaNode?.mimetype as string) ?? undefined)
+        : undefined;
+      const mediaDuration =
+        msgType === 'audio' || msgType === 'video'
+          ? Number(mediaNode?.seconds) || null
+          : null;
 
       const direction = isFromMe
         ? MessageDirection.OUTBOUND
@@ -730,9 +824,22 @@ export class WhatsappEvolutionService
           status: isFromMe ? MessageStatus.SENT : MessageStatus.DELIVERED,
           externalId,
           mediaUrl,
+          mediaMimetype,
+          mediaDuration,
           readByUser: isFromMe ? true : false,
         });
         const saved = await this.messageRepo.save(entity);
+
+        // The webhook already carried the bytes — cache them so the first play
+        // costs nothing. Keyed as 'raw': audio is served converted (mp4) and
+        // asks for a different key, so it correctly falls through to Evolution.
+        if (inlineMedia && externalId) {
+          this.writeMediaCache(
+            this.mediaCacheKey(connectionId, externalId, false),
+            inlineMedia.base64,
+            inlineMedia.mimetype,
+          );
+        }
 
         this.logger.log(
           `${isFromMe ? 'Outbound (phone)' : 'Incoming'} ${remotePhone}: type=${msgType} connection=${connectionId}`,
@@ -878,9 +985,15 @@ export class WhatsappEvolutionService
       {
         webhook: {
           url: webhookUrl,
+          enabled: true,
+          // Current v2 reads byEvents/base64; v2.0/2.1 read the underscored
+          // names. Neither schema forbids extra keys, so send both and stay
+          // correct on whichever build the instance is running. Without this,
+          // base64 silently stays off and every media view hits the API.
+          byEvents: false,
+          base64: true,
           webhook_by_events: false,
           webhook_base64: true,
-          enabled: true,
           events: [
             'QRCODE_UPDATED',
             'CONNECTION_UPDATE',
@@ -1093,13 +1206,105 @@ export class WhatsappEvolutionService
     return saved;
   }
 
+  // ── Send voice note (PTT) ──
+
+  /**
+   * Send a WhatsApp voice note (PTT).
+   *
+   * Unlike sendMedia with mediatype=Audio — which arrives as an audio
+   * attachment — /message/sendWhatsAppAudio forces ptt:true and the
+   * "audio/ogg; codecs=opus" mimetype WhatsApp expects for voice messages,
+   * and shows the "gravando áudio..." presence to the recipient.
+   *
+   * Evolution transcodes the payload with ffmpeg (its `encoding` flag
+   * defaults to true), so browser-recorded webm/opus or mp4/aac is accepted
+   * as-is and does not need conversion here.
+   */
+  async sendAudio(
+    connectionId: string,
+    phone: string,
+    audioBuffer: Buffer,
+    seconds?: number,
+  ) {
+    const inst = await this.ensureInstance(connectionId);
+    if (!inst) {
+      throw new Error('WhatsApp não conectado');
+    }
+
+    const normalizedPhone = this.normalizePhone(phone);
+
+    // Evolution validates this field with isBase64() — unlike sendMedia,
+    // a "data:<mime>;base64," prefix is rejected here. Send raw base64.
+    const body = {
+      number: normalizedPhone,
+      audio: audioBuffer.toString('base64'),
+    };
+
+    const response = await this.apiCall(
+      'POST',
+      `/message/sendWhatsAppAudio/${inst.instanceName}`,
+      body,
+      inst.instanceToken,
+    );
+
+    const existingMsg = await this.messageRepo.findOne({
+      where: {
+        tenantId: inst.tenantId,
+        connectionId,
+        remotePhone: normalizedPhone,
+      },
+      select: ['remoteName'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const entity = this.messageRepo.create({
+      tenantId: inst.tenantId,
+      connectionId,
+      remoteJid: `${normalizedPhone}@s.whatsapp.net`,
+      remotePhone: normalizedPhone,
+      remoteName: existingMsg?.remoteName || undefined,
+      content: '[audio]',
+      type: 'ptt',
+      direction: MessageDirection.OUTBOUND,
+      status: MessageStatus.SENT,
+      externalId: response?.key?.id || undefined,
+      mediaUrl: 'proxy',
+      mediaDuration: seconds && seconds > 0 ? Math.round(seconds) : null,
+    });
+
+    const saved = await this.messageRepo.save(entity);
+    this.emit('message', {
+      tenantId: inst.tenantId,
+      connectionId,
+      message: saved,
+    });
+    return saved;
+  }
+
   // ── Fetch media from Evolution API (proxy) ──
 
+  /**
+   * @param convertToMp4 Ask Evolution to transcode the media to audio/mp4.
+   *   WhatsApp voice notes are ogg/opus, which Safari (iOS and macOS) cannot
+   *   decode; mp4/AAC plays everywhere. Only meaningful for audio messages —
+   *   Evolution ignores the flag for every other media type.
+   */
   async getMediaBase64(
     connectionId: string,
     messageExternalId: string,
     remoteJid: string,
+    convertToMp4 = false,
   ): Promise<{ base64: string; mimetype: string } | null> {
+    const cacheKey = this.mediaCacheKey(
+      connectionId,
+      messageExternalId,
+      convertToMp4,
+    );
+    const cached = this.readMediaCache(cacheKey);
+    if (cached) {
+      return { base64: cached.base64, mimetype: cached.mimetype };
+    }
+
     const inst = await this.ensureInstance(connectionId);
     if (!inst) return null;
 
@@ -1114,12 +1319,16 @@ export class WhatsappEvolutionService
               id: messageExternalId,
             },
           },
+          convertToMp4,
         },
         inst.instanceToken,
       );
 
       if (result?.base64 && result?.mimetype) {
-        return { base64: result.base64, mimetype: result.mimetype };
+        const base64: string = result.base64;
+        const mimetype: string = result.mimetype;
+        this.writeMediaCache(cacheKey, base64, mimetype);
+        return { base64, mimetype };
       }
       return null;
     } catch (err) {
