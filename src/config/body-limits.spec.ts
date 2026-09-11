@@ -10,18 +10,18 @@ import { configureBodyLimits } from './body-limits';
 class ProbeController {
   @Post('whatsapp/webhook/:tenantId/:connectionId')
   @HttpCode(HttpStatus.OK)
-  webhook(@Body() body: any) {
-    return { received: true, size: JSON.stringify(body).length };
+  webhook(@Body() body: { data?: { filler?: string } }) {
+    return { received: true, size: body?.data?.filler?.length ?? null };
   }
 
-  @Post('voters')
+  @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  voters(@Body() body: any) {
-    return { received: true, size: JSON.stringify(body).length };
+  login(@Body() body: { email?: string; password?: string }) {
+    return { email: body?.email ?? null, password: body?.password ?? null };
   }
 }
 
-/** A payload well past Express's 100kb default, like a base64 photo. */
+/** A payload well past the 100kb default, like a base64 photo. */
 const oversized = { data: { filler: 'x'.repeat(400 * 1024) } };
 
 describe('configureBodyLimits', () => {
@@ -32,7 +32,7 @@ describe('configureBodyLimits', () => {
       controllers: [ProbeController],
     }).compile();
 
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication({ bodyParser: false });
     app.setGlobalPrefix('api');
     configureBodyLimits(app);
     await app.init();
@@ -42,20 +42,36 @@ describe('configureBodyLimits', () => {
     await app.close();
   });
 
-  it('accepts a webhook payload larger than the Express default', async () => {
-    await request(app.getHttpServer())
+  it('accepts a webhook payload larger than the default limit', async () => {
+    const res = await request(app.getHttpServer())
       .post('/api/whatsapp/webhook/tenant-1/connection-1')
       .send(oversized)
       .expect(200);
+
+    expect(res.body).toEqual({ received: true, size: 400 * 1024 });
   });
 
-  // body-parser's PayloadTooLargeError is not an HttpException, so Nest
-  // surfaces the rejection as a 500 rather than a 413. That is what production
-  // returns today for an oversized webhook, and what the logs show.
-  it('keeps the conservative default on every other route', async () => {
+  // Raising the webhook limit once cost every other route its body parser:
+  // Nest skips its own registration when a middleware named `jsonParser` is
+  // already mounted, so login arrived with an empty body and failed validation.
+  it('still parses the body on every other route', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'user@example.com', password: 's3cret' })
+      .expect(200);
+
+    expect(res.body).toEqual({
+      email: 'user@example.com',
+      password: 's3cret',
+    });
+  });
+
+  // 413 is what the parser itself raises; in the running app AllExceptionsFilter
+  // relabels it as a 500, which is how these rejections show up in the logs.
+  it('keeps the conservative limit on every other route', async () => {
     await request(app.getHttpServer())
-      .post('/api/voters')
+      .post('/api/auth/login')
       .send(oversized)
-      .expect(500);
+      .expect(413);
   });
 });

@@ -9,10 +9,9 @@ import { AllExceptionsFilter } from './shared/filters/http-exception.filter';
 import { TenantInterceptor } from './shared/interceptors/tenant.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // bodyParser: false — configureBodyLimits owns every parser, see the note there.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Before anything else: the webhook parser has to claim the body ahead of
-  // Nest's own, which is installed on init().
   configureBodyLimits(app);
 
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
