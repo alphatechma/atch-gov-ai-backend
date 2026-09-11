@@ -4,11 +4,16 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
 import { AppModule } from './app.module';
+import { configureBodyLimits } from './config/body-limits';
 import { AllExceptionsFilter } from './shared/filters/http-exception.filter';
 import { TenantInterceptor } from './shared/interceptors/tenant.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Before anything else: the webhook parser has to claim the body ahead of
+  // Nest's own, which is installed on init().
+  configureBodyLimits(app);
 
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
 
